@@ -228,6 +228,8 @@ def optimiser(df_sites, params):
         idx = routing.Start(v)
         ordre = 0
         prev = manager.IndexToNode(idx)
+        derniere_ligne = None
+        dernier_site = None
         while not routing.IsEnd(idx):
             nxt = sol.Value(routing.NextVar(idx))
             node = manager.IndexToNode(nxt)
@@ -244,13 +246,36 @@ def optimiser(df_sites, params):
                     "adresse": s["adresse"], "ville": s["ville"], "dept": s["dept"],
                     "lat": s["lat"], "lon": s["lon"],
                     "km_segment": round(km, 2),
+                    "km_retour": 0.0,
                 })
+                derniere_ligne = len(rows) - 1
+                dernier_site = node
             prev = node
             idx = nxt
+        # Retour au dépôt (sauf tournée ouverte) : ajouté aux km et à la dernière ligne
+        if dernier_site is not None and not ouverte:
+            retour = M[dernier_site][0]
+            total_km += retour
+            rows[derniere_ligne]["km_retour"] = round(retour, 2)
 
     routes = pd.DataFrame(rows)
     planifies = set(routes["site_id"]) if not routes.empty else set()
     non_planifies = [s for s in sites["id"] if s not in planifies]
+
+    # Référence "non optimisé" : sites planifiés pris dans l'ordre du fichier,
+    # répartis simplement entre les tournées, calculés avec LA MÊME matrice M
+    # (donc même méthode de distance et même périmètre que l'optimisé -> comparaison juste).
+    nodes_planifies = [k + 1 for k in range(n_sites)
+                       if sites.iloc[k]["id"] in planifies]
+    base_km = 0.0
+    if nodes_planifies:
+        for grp in np.array_split(nodes_planifies, n_veh):
+            prev = 0  # dépôt
+            for nd in grp:
+                base_km += M[prev][int(nd)]
+                prev = int(nd)
+            if not ouverte:
+                base_km += M[prev][0]
 
     stats = {
         "status": "OK",
@@ -262,9 +287,11 @@ def optimiser(df_sites, params):
         "n_tournees": routes.groupby(["technicien", "jour"]).ngroups if not routes.empty else 0,
         "depot": depot,
         "routier_reel": bool(p.get("_reel_ok")),
+        "baseline_km": round(base_km, 1),
     }
     if p.get("cout_km", 0):
         stats["cout_total"] = round(total_km * p["cout_km"], 0)
+        stats["cout_economie"] = round(max(0, base_km - total_km) * p["cout_km"], 0)
     return routes, stats
 
 
