@@ -1,5 +1,5 @@
 """
-app.py — Optimiseur de tournées techniciens (interface)
+app.py - Optimiseur de tournées techniciens (interface)
 =======================================================
 Lancement :  streamlit run app.py
 Dépend de  :  engine.py (moteur d'optimisation)
@@ -22,7 +22,7 @@ NUIT2  = "#2A2770"
 VERT   = "#00ECA6"
 BLANC  = "#FFFFFF"
 
-st.set_page_config(page_title="Axione — Optimiseur de tournées",
+st.set_page_config(page_title="Axione - Optimiseur de tournées",
                    page_icon="🛰️", layout="wide")
 
 # ── CSS perso (look Axione) ──────────────────────────────────────────────
@@ -77,7 +77,7 @@ st.markdown(f"""
      <span style="color:{VERT}">techniciens</span></div>
   <div class="accent"></div>
   <div style="color:#C9C7EC;max-width:760px;">Importez vos sites, réglez vos contraintes,
-     obtenez les tournées les plus courtes — distances routières réelles, carte interactive
+     obtenez les tournées les plus courtes - distances routières réelles, carte interactive
      et itinéraire Google Maps pour chaque technicien.</div>
 </div>
 """, unsafe_allow_html=True)
@@ -307,7 +307,7 @@ if "res" in st.session_state:
     k = st.columns(4)
     kpis = [("Km optimisés", f"{stats['total_km']:.0f} km"),
             ("Gain vs non optimisé", f"{gain:.0f} %"),
-            ("Économie estimée", f"{stats.get('cout_total', 0):.0f} €" if cout_km else "—"),
+            ("Économie estimée", f"{stats.get('cout_total', 0):.0f} €" if cout_km else "-"),
             ("CO₂ évité", f"{co2_evite:.0f} kg")]
     for col, (l, v) in zip(k, kpis):
         col.markdown(f'<div class="kpi"><div class="v">{v}</div><div class="l">{l}</div></div>',
@@ -329,12 +329,12 @@ if "res" in st.session_state:
     if stats.get("routier_reel"):
         st.caption("✅ Distances routières réelles (OSRM, gratuit).")
     else:
-        st.caption("ℹ️ Distances estimées (à vol d'oiseau × 1,3) — le service routier "
+        st.caption("ℹ️ Distances estimées (à vol d'oiseau × 1,3) - le service routier "
                    "n'était pas disponible ou l'option est désactivée.")
     st.caption("ℹ️ Le « non optimisé » est une organisation sans regroupement géographique. "
                "Le gain réel face à une planification manuelle se situe en général entre 15 et 30 %.")
 
-    # CARTE D'ABORD — routes animées, points numérotés, légende
+    # CARTE D'ABORD - routes animées, points numérotés, légende
     st.markdown("### 🗺️ Carte des tournées")
     from folium.plugins import AntPath
     centre = [sites_f["lat"].mean(), sites_f["lon"].mean()]
@@ -353,7 +353,7 @@ if "res" in st.session_state:
         sub = sub.sort_values("ordre")
         chemin = ([list(depot_pt)] if depot_pt else []) + list(zip(sub["lat"], sub["lon"]))
         AntPath(chemin, color=col, weight=4, opacity=0.9, delay=800,
-                tooltip=f"{tech} — jour {jour}").add_to(fmap)
+                tooltip=f"{tech} - jour {jour}").add_to(fmap)
         for _, r in sub.iterrows():
             folium.Marker(
                 [r["lat"], r["lon"]],
@@ -406,7 +406,7 @@ if "res" in st.session_state:
         sub = sub.sort_values("ordre")
         km_t = sub["km_segment"].sum()
         duree_t = len(sub) * params.get("duree_site", 30) + (km_t / 50) * 60  # min
-        with st.expander(f"{tech} — jour {jour} · {len(sub)} sites · "
+        with st.expander(f"{tech} - jour {jour} · {len(sub)} sites · "
                          f"{km_t:.0f} km · ≈{duree_t/60:.1f} h"):
             url = e.lien_google_maps(depot_pt, sub, mode="driving", ouverte=ouverte)
             if url:
@@ -421,5 +421,5 @@ st.markdown("**1.** Importez votre fichier de sites (Excel/CSV avec coordonnées
             "**2.** Réglez vos contraintes : techniciens, période, départ, km max, horaires.  \n"
             "**3.** L'algorithme calcule les tournées les plus courtes et les affiche sur la carte.  \n"
             "**4.** Exportez le planning prêt à distribuer aux équipes.")
-st.markdown("<p style='color:#8784BE;font-size:12px;'>© 2026 — Outil d'optimisation de "
+st.markdown("<p style='color:#8784BE;font-size:12px;'>© 2026 - Outil d'optimisation de "
             "tournées · propulsé par OR-Tools</p>", unsafe_allow_html=True)
