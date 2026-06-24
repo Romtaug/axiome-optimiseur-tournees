@@ -47,6 +47,23 @@ st.markdown(f"""
   .stDownloadButton>button {{ background:transparent; color:{VERT}; border:2px solid {VERT};
         border-radius:30px; font-weight:700; }}
   div[data-testid="stMetricValue"] {{ color:{VERT}; }}
+
+  /* --- Éliminer les fonds blancs des widgets --- */
+  [data-testid="stFileUploaderDropzone"] {{
+      background:{NUIT2} !important; border:1px dashed {VERT} !important; color:{BLANC} !important; }}
+  [data-testid="stFileUploaderDropzone"] * {{ color:{BLANC} !important; }}
+  .stTextInput input, .stNumberInput input, textarea {{
+      background:{NUIT2} !important; color:{BLANC} !important; border:1px solid #3A3690 !important; }}
+  div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {{
+      background:{NUIT2} !important; color:{BLANC} !important; border-color:#3A3690 !important; }}
+  div[data-baseweb="popover"], ul[role="listbox"] {{ background:{NUIT2} !important; color:{BLANC} !important; }}
+  div[data-baseweb="tag"] {{ background:{VERT} !important; color:{NUIT} !important; }}
+  [data-testid="stExpander"] {{ background:{NUIT2} !important; border:1px solid #3A3690 !important;
+      border-radius:12px !important; }}
+  [data-testid="stExpander"] summary {{ color:{BLANC} !important; }}
+  [data-testid="stDataFrame"], [data-testid="stTable"] {{ background:{NUIT2} !important; }}
+  .stRadio, .stCheckbox, .stSlider {{ color:{BLANC} !important; }}
+  [data-testid="stWidgetLabel"] p {{ color:{BLANC} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,37 +118,37 @@ st.success(f"{len(sites)} sites chargés.")
 
 # ── 2. Paramètres ──────────────────────────────────────────────────────
 st.markdown("### 2 · Réglages")
-with st.container():
-    cc = st.columns(3)
-    with cc[0]:
-        n_techs = st.number_input("Nombre de techniciens", 1, 50, 3)
-        n_jours = st.select_slider("Période", options=[1, 2, 3, 4, 5],
-                                   value=5, format_func=lambda x: f"{x} jour(s)")
-    with cc[1]:
-        depot_choix = st.radio("Point de départ", [
-            "Adresse Axione", "Choisir sur la carte", "Barycentre des sites (auto)",
-            "Chacun chez soi (tournées ouvertes)"])
-        adresse_depot = ""
-        if depot_choix == "Adresse Axione":
-            adresse_depot = st.text_input("Adresse de départ", "Axione, France")
-    with cc[2]:
-        max_km = st.number_input("Km max par tournée (0 = illimité)", 0, 2000, 0, step=10)
-        max_sites = st.number_input("Sites max par tournée (0 = auto)", 0, 100, 0)
 
-    cc2 = st.columns(3)
-    with cc2[0]:
+# ---- Essentiels (toujours visibles) ----
+ce1, ce2 = st.columns(2)
+with ce1:
+    adresse_depot = st.text_input("Adresse de départ", value="5 Route du Fief, 69780 Toussieu")
+with ce2:
+    sites_jour = st.slider("Sites à visiter par jour", 1, 15, 5)
+
+depts = e.departements(sites)
+
+# ---- Options supplémentaires (repliées) ----
+with st.expander("Options supplémentaires"):
+    oc = st.columns(3)
+    with oc[0]:
+        n_techs = st.number_input("Nombre de techniciens", 1, 50, 1)
+        n_jours = st.number_input("Nombre de jours", 1, 30, 1)
+        depot_choix = st.radio("Point de départ", [
+            "Adresse saisie ci-dessus", "Choisir sur la carte",
+            "Barycentre des sites", "Chacun chez soi (tournées ouvertes)"])
+    with oc[1]:
         amplitude = st.slider("Amplitude horaire (heures)", 6, 20, (8, 17))
-        routier_reel = st.toggle("Distances routières réelles (gratuit)", value=True,
-                                 help="Calcul des vrais trajets routiers via OSRM, "
-                                      "sans clé ni coût. Repli automatique sur estimation "
-                                      "si le service est indisponible.")
-    with cc2[1]:
         pause = st.slider("Pause déjeuner (min)", 0, 120, 60, step=15)
         duree = st.slider("Durée par site (min)", 10, 180, 30, step=5)
-    with cc2[2]:
-        depts = e.departements(sites)
+    with oc[2]:
+        max_km = st.number_input("Km max par tournée (0 = illimité)", 0, 2000, 0, step=10)
         sel_depts = st.multiselect("Filtrer par département", depts, default=depts)
-        cout_km = st.number_input("Coût du km (€) — pour estimer l'économie", 0.0, 5.0, 0.40, 0.05)
+        cout_km = st.number_input("Coût du km (€)", 0.0, 5.0, 0.40, 0.05)
+        routier_reel = st.toggle("Distances routières réelles (gratuit)", value=True)
+
+# le "sites par jour" pilote la capacité de chaque tournée
+max_sites = int(sites_jour)
 
 # Filtre département
 sites_f = sites[sites["dept"].isin(sel_depts)].reset_index(drop=True) if sel_depts else sites
@@ -139,12 +156,13 @@ sites_f = sites[sites["dept"].isin(sel_depts)].reset_index(drop=True) if sel_dep
 # Dépôt
 depot = None
 depot_mode = "depot"
-if depot_choix == "Adresse Axione" and adresse_depot:
+if depot_choix == "Adresse saisie ci-dessus" and adresse_depot:
     g = geocoder(adresse_depot)
     if g:
         depot = g
+        st.caption(f"📍 Adresse localisée : {g[0]:.4f}, {g[1]:.4f}")
     else:
-        st.warning("Adresse non géolocalisée : on utilise le barycentre des sites.")
+        st.warning("Adresse non localisée : on utilise le barycentre des sites.")
 elif depot_choix == "Choisir sur la carte":
     st.markdown("##### 📍 Cliquez sur la carte pour placer le point de départ")
     cdef = st.session_state.get("depot_clic",
@@ -210,9 +228,10 @@ if "res" in st.session_state:
                      f'<div class="l">{l}</div></div>', unsafe_allow_html=True)
 
     if stats["n_non_planifies"]:
-        st.warning(f"{stats['n_non_planifies']} site(s) non planifié(s) "
-                   "(trop éloignés pour les contraintes actuelles — élargis la période, "
-                   "le km max, ou filtre par zone).")
+        capacite = params["n_techs"] * params["n_jours"] * (params.get("max_sites_tour") or 0)
+        st.info(f"{stats['n_planifies']} sites planifiés sur {stats['n_sites']}. "
+                "Pour en visiter plus, augmentez le nombre de jours ou de techniciens "
+                "dans « Options supplémentaires ».")
     if stats.get("routier_reel"):
         st.caption("✅ Distances routières réelles (OSRM, gratuit).")
     else:
