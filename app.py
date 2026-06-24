@@ -1,7 +1,10 @@
 """
 app.py — Optimiseur de tournées techniciens (interface)
-Lancement : streamlit run app.py    |    Dépend de engine.py
-Charte Axione : bleu nuit #201E5B, vert turquoise #00ECA6.
+=======================================================
+Lancement :  streamlit run app.py
+Dépend de  :  engine.py (moteur d'optimisation)
+
+Charte Axione : bleu nuit #201E5B, vert turquoise #00ECA6, texte blanc.
 """
 
 import io
@@ -13,10 +16,16 @@ from streamlit_folium import st_folium
 
 import engine as e
 
-NUIT, NUIT2, VERT, BLANC = "#201E5B", "#2A2770", "#00ECA6", "#FFFFFF"
+# ── Couleurs Axione ──────────────────────────────────────────────────────
+NUIT   = "#201E5B"
+NUIT2  = "#2A2770"
+VERT   = "#00ECA6"
+BLANC  = "#FFFFFF"
 
-st.set_page_config(page_title="Axione — Optimiseur de tournées", page_icon="🛰️", layout="wide")
+st.set_page_config(page_title="Axione — Optimiseur de tournées",
+                   page_icon="🛰️", layout="wide")
 
+# ── CSS perso (look Axione) ──────────────────────────────────────────────
 st.markdown(f"""
 <style>
   .stApp {{ background:{NUIT}; color:{BLANC}; }}
@@ -26,20 +35,31 @@ st.markdown(f"""
   .axione-logo .o {{ color:{VERT}; }}
   .axione-tag {{ color:#B9B7E0; font-size:13px; margin-top:-8px; letter-spacing:2px; }}
   .accent {{ height:4px; width:60px; background:{VERT}; border-radius:3px; margin:8px 0 18px; }}
-  .kpi {{ background:{NUIT2}; border-radius:16px; padding:18px; text-align:center; border:1px solid #3A3690; }}
+  .card {{ background:{NUIT2}; border-radius:16px; padding:20px 22px; margin-bottom:14px;
+           border:1px solid #3A3690; }}
+  .kpi {{ background:{NUIT2}; border-radius:16px; padding:18px; text-align:center;
+          border:1px solid #3A3690; }}
   .kpi .v {{ font-size:30px; font-weight:800; color:{VERT}; }}
   .kpi .l {{ font-size:13px; color:#B9B7E0; }}
-  .stButton>button {{ background:{VERT}; color:{NUIT}; font-weight:800; border:none; border-radius:30px; padding:10px 26px; }}
+  .stButton>button {{ background:{VERT}; color:{NUIT}; font-weight:800; border:none;
+        border-radius:30px; padding:10px 26px; }}
   .stButton>button:hover {{ background:#00FFB4; color:{NUIT}; }}
-  .stDownloadButton>button {{ background:transparent; color:{VERT}; border:2px solid {VERT}; border-radius:30px; font-weight:700; }}
+  .stDownloadButton>button {{ background:transparent; color:{VERT}; border:2px solid {VERT};
+        border-radius:30px; font-weight:700; }}
   div[data-testid="stMetricValue"] {{ color:{VERT}; }}
-  [data-testid="stFileUploaderDropzone"] {{ background:{NUIT2} !important; border:1px dashed {VERT} !important; color:{BLANC} !important; }}
+
+  /* --- Éliminer les fonds blancs des widgets --- */
+  [data-testid="stFileUploaderDropzone"] {{
+      background:{NUIT2} !important; border:1px dashed {VERT} !important; color:{BLANC} !important; }}
   [data-testid="stFileUploaderDropzone"] * {{ color:{BLANC} !important; }}
-  .stTextInput input, .stNumberInput input, textarea {{ background:{NUIT2} !important; color:{BLANC} !important; border:1px solid #3A3690 !important; }}
-  div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {{ background:{NUIT2} !important; color:{BLANC} !important; border-color:#3A3690 !important; }}
+  .stTextInput input, .stNumberInput input, textarea {{
+      background:{NUIT2} !important; color:{BLANC} !important; border:1px solid #3A3690 !important; }}
+  div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {{
+      background:{NUIT2} !important; color:{BLANC} !important; border-color:#3A3690 !important; }}
   div[data-baseweb="popover"], ul[role="listbox"] {{ background:{NUIT2} !important; color:{BLANC} !important; }}
   div[data-baseweb="tag"] {{ background:{VERT} !important; color:{NUIT} !important; }}
-  [data-testid="stExpander"] {{ background:{NUIT2} !important; border:1px solid #3A3690 !important; border-radius:12px !important; }}
+  [data-testid="stExpander"] {{ background:{NUIT2} !important; border:1px solid #3A3690 !important;
+      border-radius:12px !important; }}
   [data-testid="stExpander"] summary {{ color:{BLANC} !important; }}
   [data-testid="stDataFrame"], [data-testid="stTable"] {{ background:{NUIT2} !important; }}
   .stRadio, .stCheckbox, .stSlider {{ color:{BLANC} !important; }}
@@ -47,6 +67,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
+# ── En-tête ──────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div style="background:linear-gradient(120deg,{NUIT} 0%,#2A2770 60%,#322B86 100%);
      border-radius:20px;padding:26px 30px;margin-bottom:8px;border:1px solid #3A3690;">
@@ -56,15 +77,17 @@ st.markdown(f"""
      <span style="color:{VERT}">techniciens</span></div>
   <div class="accent"></div>
   <div style="color:#C9C7EC;max-width:760px;">Importez vos sites, réglez vos contraintes,
-     obtenez les tournées les plus courtes - distances routières réelles, carte interactive
+     obtenez les tournées les plus courtes — distances routières réelles, carte interactive
      et itinéraire Google Maps pour chaque technicien.</div>
 </div>
 """, unsafe_allow_html=True)
 
 
+# ── Géocodage (pour l'adresse de départ) ────────────────────────────────
 @st.cache_data(show_spinner=False)
 def geocoder_lot(queries):
-    """Géocode une liste d'adresses en un seul appel via la BAN (CSV bulk, gratuit)."""
+    """Géocode une liste d'adresses en un seul appel via la BAN (CSV bulk, gratuit).
+    Retourne deux listes (lats, lons) alignées sur queries. None si échec/ligne ratée."""
     import io as _io, csv as _csv
     buf = _io.StringIO()
     w = _csv.writer(buf)
@@ -86,7 +109,8 @@ def geocoder_lot(queries):
 
 @st.cache_data(show_spinner=False)
 def ban_search(q):
-    """Suggestions d'adresses via la Base Adresse Nationale (gratuit, sans clé)."""
+    """Suggestions d'adresses via la Base Adresse Nationale (gratuit, sans clé,
+    méthode ThermoData). Retourne une liste {label, lat, lon, dept}."""
     if len(q.strip()) < 4:
         return []
     try:
@@ -118,7 +142,7 @@ def geocoder(adresse):
     return None
 
 
-# ── 1. Données ──
+# ── 1. Données ─────────────────────────────────────────────────────────
 st.markdown("### 1 · Vos sites")
 f = st.file_uploader("Fichier Excel des sites (nom, adresse, ville, code postal, "
                      "latitude, longitude)", type=["xlsx", "xls", "csv"])
@@ -133,7 +157,7 @@ if df_raw is None:
 
 sites = e.normaliser(df_raw)
 
-# Géocodage automatique des sites sans coordonnées
+# Géocodage automatique des sites sans coordonnées (fichier avec adresses seules)
 manque = sites["lat"].isna() | sites["lon"].isna()
 n_manque = int(manque.sum())
 if n_manque:
@@ -147,6 +171,7 @@ if n_manque:
                     sites.at[idx, "lat"] = lats[pos]
                     sites.at[idx, "lon"] = lons[pos]
 
+# Retirer ce qui reste sans coordonnées après géocodage
 avant = len(sites)
 sites = sites.dropna(subset=["lat", "lon"]).reset_index(drop=True)
 ignores = avant - len(sites)
@@ -156,15 +181,17 @@ if sites.empty:
     st.error("Aucun site géolocalisable dans ce fichier."); st.stop()
 st.success(f"{len(sites)} sites prêts (coordonnées trouvées).")
 
-# ── 2. Paramètres ──
+# ── 2. Paramètres ──────────────────────────────────────────────────────
 st.markdown("### 2 · Réglages")
 
+# ---- Essentiels (toujours visibles) ----
 ce1, ce2 = st.columns(2)
 with ce1:
     adresse_depot = st.text_input("Adresse de départ",
                                   value="5 Route du Fief, 69780 Toussieu",
                                   key="addr_query")
     sel = st.session_state.get("depot_sel")
+    # Afficher des suggestions tant qu'aucune n'est confirmée pour ce texte
     if not (sel and sel["label"] == adresse_depot):
         for s in ban_search(adresse_depot):
             if st.button(f"📍 {s['label']}", key=f"sg_{s['label']}", use_container_width=True):
@@ -178,6 +205,7 @@ with ce2:
 
 depts = e.departements(sites)
 
+# ---- Options supplémentaires (repliées) ----
 with st.expander("Options supplémentaires"):
     oc = st.columns(3)
     with oc[0]:
@@ -196,10 +224,13 @@ with st.expander("Options supplémentaires"):
         cout_km = st.number_input("Coût du km (€)", 0.0, 5.0, 0.40, 0.05)
         routier_reel = st.toggle("Distances routières réelles (gratuit)", value=True)
 
+# le "sites par jour" pilote la capacité de chaque tournée
 max_sites = int(sites_jour)
 
+# Filtre département
 sites_f = sites[sites["dept"].isin(sel_depts)].reset_index(drop=True) if sel_depts else sites
 
+# Dépôt
 depot = None
 depot_mode = "depot"
 if depot_choix == "Adresse saisie ci-dessus" and adresse_depot:
@@ -222,20 +253,22 @@ elif depot_choix == "Choisir sur la carte":
     cdef = st.session_state.get("depot_clic",
                                 [float(sites_f["lat"].mean()), float(sites_f["lon"].mean())])
     pick = folium.Map(location=cdef, zoom_start=9, tiles="cartodbpositron")
-    folium.Marker(cdef, tooltip="Départ", icon=folium.Icon(color="green", icon="play")).add_to(pick)
+    folium.Marker(cdef, tooltip="Départ", icon=folium.Icon(color="green", icon="play")
+                  ).add_to(pick)
     for _, s in sites_f.iterrows():
         folium.CircleMarker([s["lat"], s["lon"]], radius=3, color=VERT, fill=True,
                             fill_opacity=0.7).add_to(pick)
     clic = st_folium(pick, height=320, use_container_width=True, key="pickmap")
     if clic and clic.get("last_clicked"):
-        st.session_state["depot_clic"] = [clic["last_clicked"]["lat"], clic["last_clicked"]["lng"]]
+        st.session_state["depot_clic"] = [clic["last_clicked"]["lat"],
+                                          clic["last_clicked"]["lng"]]
         cdef = st.session_state["depot_clic"]
     depot = tuple(cdef)
     st.caption(f"Point de départ : {cdef[0]:.4f}, {cdef[1]:.4f}")
 elif depot_choix.startswith("Chacun"):
     depot_mode = "ouverte"
 
-# ── 3. Optimisation ──
+# ── 3. Optimisation ────────────────────────────────────────────────────
 st.markdown("### 3 · Optimisation")
 if st.button("⚙️  Calculer les tournées optimisées"):
     params = dict(n_techs=int(n_techs), n_jours=int(n_jours), depot=depot,
@@ -249,14 +282,25 @@ if st.button("⚙️  Calculer les tournées optimisées"):
         st.error(stats["status"]); st.stop()
     st.session_state["res"] = (routes, stats, params)
 
-# ── Résultats ──
+# ── Résultats (carte d'abord, puis téléchargement) ─────────────────────
 if "res" in st.session_state:
     routes, stats, params = st.session_state["res"]
+
+    # Aucune tournée construite -> message clair au lieu de planter
+    if routes.empty:
+        st.warning("Aucune tournée n'a pu être construite. Causes fréquentes : le point "
+                   "de départ est trop loin des sites, ou les contraintes sont trop serrées. "
+                   "Essayez « Barycentre des sites » comme point de départ, augmentez le "
+                   "nombre de jours, ou élargissez l'amplitude horaire (Options supplémentaires).")
+        st.stop()
+
     base = e.baseline_km(sites_f, params, set(routes["site_id"])) if not routes.empty else 0
     gain = (base - stats["total_km"]) / base * 100 if base else 0
+
+    # Indicateurs dérivés
     km_eco = max(0, base - stats["total_km"])
-    co2_evite = km_eco * 0.15
-    h_conduite = stats["total_km"] / 50
+    co2_evite = km_eco * 0.15          # ~150 g CO2/km (véhicule utilitaire léger)
+    h_conduite = stats["total_km"] / 50 # heures de conduite optimisées (≈50 km/h)
 
     st.markdown("## Résultats")
     st.markdown('<div class="accent"></div>', unsafe_allow_html=True)
@@ -278,23 +322,26 @@ if "res" in st.session_state:
                      f'<div class="l">{l}</div></div>', unsafe_allow_html=True)
 
     if stats["n_non_planifies"]:
+        capacite = params["n_techs"] * params["n_jours"] * (params.get("max_sites_tour") or 0)
         st.info(f"{stats['n_planifies']} sites planifiés sur {stats['n_sites']}. "
                 "Pour en visiter plus, augmentez le nombre de jours ou de techniciens "
                 "dans « Options supplémentaires ».")
     if stats.get("routier_reel"):
         st.caption("✅ Distances routières réelles (OSRM, gratuit).")
     else:
-        st.caption("ℹ️ Distances estimées (vol d'oiseau × 1,3) - service routier indisponible "
-                   "ou option désactivée.")
+        st.caption("ℹ️ Distances estimées (à vol d'oiseau × 1,3) — le service routier "
+                   "n'était pas disponible ou l'option est désactivée.")
     st.caption("ℹ️ Le « non optimisé » est une organisation sans regroupement géographique. "
                "Le gain réel face à une planification manuelle se situe en général entre 15 et 30 %.")
 
+    # CARTE D'ABORD — routes animées, points numérotés, légende
     st.markdown("### 🗺️ Carte des tournées")
     from folium.plugins import AntPath
     centre = [sites_f["lat"].mean(), sites_f["lon"].mean()]
     fmap = folium.Map(location=centre, zoom_start=9, tiles="cartodbpositron")
-    palette = [VERT, "#FF6B6B", "#4D96FF", "#FFD93D", "#A66CFF", "#FF9F45", "#6BCB77",
-               "#F178B6", "#43C6DB", "#E84393", "#FFB562", "#7AE7C7", "#FF8DC7", "#62B6FF", "#B5E48C"]
+    palette = [VERT, "#FF6B6B", "#4D96FF", "#FFD93D", "#A66CFF",
+               "#FF9F45", "#6BCB77", "#F178B6", "#43C6DB", "#E84393",
+               "#FFB562", "#7AE7C7", "#FF8DC7", "#62B6FF", "#B5E48C"]
     depot_pt = stats.get("depot")
     if depot_pt:
         folium.Marker(list(depot_pt), tooltip="Départ",
@@ -308,15 +355,18 @@ if "res" in st.session_state:
         AntPath(chemin, color=col, weight=4, opacity=0.9, delay=800,
                 tooltip=f"{tech} — jour {jour}").add_to(fmap)
         for _, r in sub.iterrows():
-            folium.Marker([r["lat"], r["lon"]],
+            folium.Marker(
+                [r["lat"], r["lon"]],
                 tooltip=f"{tech} J{jour} · arrêt {int(r['ordre'])} · {r['nom']}",
                 icon=folium.DivIcon(html=(
                     f'<div style="background:{col};color:#201E5B;border:2px solid white;'
-                    f'border-radius:50%;width:22px;height:22px;line-height:18px;text-align:center;'
-                    f'font-weight:800;font-size:11px;box-shadow:0 1px 4px rgba(0,0,0,.4)">{int(r["ordre"])}</div>'))
+                    f'border-radius:50%;width:22px;height:22px;line-height:18px;'
+                    f'text-align:center;font-weight:800;font-size:11px;'
+                    f'box-shadow:0 1px 4px rgba(0,0,0,.4)">{int(r["ordre"])}</div>'))
             ).add_to(fmap)
         legende.append((f"{tech} · J{jour}", col))
     st_folium(fmap, height=540, use_container_width=True)
+    # Légende
     chips = "".join(
         f'<span style="display:inline-block;margin:3px 8px 3px 0;font-size:12px;color:#fff">'
         f'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;'
@@ -324,7 +374,9 @@ if "res" in st.session_state:
         for n, c in legende)
     st.markdown(chips, unsafe_allow_html=True)
 
+    # TÉLÉCHARGEMENT
     st.markdown("### 📥 Export")
+    # Récapitulatif par tournée + lien Maps
     recap = []
     ouverte_flag = params.get("depot_mode") == "ouverte"
     for (tech, jour), sub in groupes:
@@ -346,13 +398,14 @@ if "res" in st.session_state:
     d2.download_button("Télécharger CSV", routes.to_csv(index=False).encode("utf-8"),
                        "tournees_optimisees.csv", "text/csv")
 
+    # Détail par tournée
     st.markdown("### Feuilles de route")
     ouverte = params.get("depot_mode") == "ouverte"
     depot_pt = stats.get("depot")
     for (tech, jour), sub in groupes:
         sub = sub.sort_values("ordre")
         km_t = sub["km_segment"].sum()
-        duree_t = len(sub) * params.get("duree_site", 30) + (km_t / 50) * 60
+        duree_t = len(sub) * params.get("duree_site", 30) + (km_t / 50) * 60  # min
         with st.expander(f"{tech} — jour {jour} · {len(sub)} sites · "
                          f"{km_t:.0f} km · ≈{duree_t/60:.1f} h"):
             url = e.lien_google_maps(depot_pt, sub, mode="driving", ouverte=ouverte)
@@ -361,6 +414,7 @@ if "res" in st.session_state:
             st.dataframe(sub[["ordre", "site_id", "nom", "ville", "dept", "km_segment"]],
                          hide_index=True, use_container_width=True)
 
+# ── Comment ça marche ──────────────────────────────────────────────────
 st.markdown("---")
 st.markdown("### Comment ça marche")
 st.markdown("**1.** Importez votre fichier de sites (Excel/CSV avec coordonnées GPS).  \n"
