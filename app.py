@@ -222,7 +222,7 @@ with st.expander("Options supplémentaires"):
         max_km = st.number_input("Km max par tournée (0 = illimité)", 0, 2000, 0, step=10)
         sel_depts = st.multiselect("Filtrer par département", depts, default=depts)
         cout_km = st.number_input("Coût du km (€)", 0.0, 5.0, 0.40, 0.05)
-        routier_reel = st.toggle("Distances routières réelles (gratuit)", value=True)
+        routier_reel = st.toggle("Distances routières réelles", value=True)
 
 # le "sites par jour" pilote la capacité de chaque tournée
 max_sites = int(sites_jour)
@@ -294,20 +294,21 @@ if "res" in st.session_state:
                    "nombre de jours, ou élargissez l'amplitude horaire (Options supplémentaires).")
         st.stop()
 
-    base = e.baseline_km(sites_f, params, set(routes["site_id"])) if not routes.empty else 0
+    base = stats.get("baseline_km", 0)
     gain = (base - stats["total_km"]) / base * 100 if base else 0
 
     # Indicateurs dérivés
     km_eco = max(0, base - stats["total_km"])
     co2_evite = km_eco * 0.15          # ~150 g CO2/km (véhicule utilitaire léger)
-    h_conduite = stats["total_km"] / 50 # heures de conduite optimisées (≈50 km/h)
+    h_conduite = stats["total_km"] / 50 # heures de conduite (≈50 km/h)
+    economie_eur = km_eco * cout_km     # économie = km évités × coût du km
 
     st.markdown("## Résultats")
     st.markdown('<div class="accent"></div>', unsafe_allow_html=True)
     k = st.columns(4)
     kpis = [("Km optimisés", f"{stats['total_km']:.0f} km"),
             ("Gain vs non optimisé", f"{gain:.0f} %"),
-            ("Économie estimée", f"{stats.get('cout_total', 0):.0f} €" if cout_km else "-"),
+            ("Économie estimée", f"{economie_eur:.0f} €" if cout_km else "-"),
             ("CO₂ évité", f"{co2_evite:.0f} kg")]
     for col, (l, v) in zip(k, kpis):
         col.markdown(f'<div class="kpi"><div class="v">{v}</div><div class="l">{l}</div></div>',
@@ -327,12 +328,27 @@ if "res" in st.session_state:
                 "Pour en visiter plus, augmentez le nombre de jours ou de techniciens "
                 "dans « Options supplémentaires ».")
     if stats.get("routier_reel"):
-        st.caption("✅ Distances routières réelles (OSRM, gratuit).")
+        st.caption("✅ Distances routières réelles (OSRM).")
     else:
         st.caption("ℹ️ Distances estimées (à vol d'oiseau × 1,3) - le service routier "
                    "n'était pas disponible ou l'option est désactivée.")
-    st.caption("ℹ️ Le « non optimisé » est une organisation sans regroupement géographique. "
-               "Le gain réel face à une planification manuelle se situe en général entre 15 et 30 %.")
+    with st.expander("Comment lire ces chiffres"):
+        st.markdown(
+            f"- **Km optimisés** : distance totale parcourue par l'ensemble des tournées, "
+            f"retour au dépôt inclus.\n"
+            f"- **Gain vs non optimisé** : comparaison avec un scénario de référence où les "
+            f"sites sont visités dans l'ordre du fichier, sans regroupement géographique. "
+            f"C'est un majorant ; face à une organisation manuelle déjà dégrossie, le gain "
+            f"réel se situe plutôt entre 15 et 30 %.\n"
+            f"- **Économie estimée** : kilomètres évités × coût du km (réglable, {cout_km:.2f} €/km).\n"
+            f"- **CO₂ évité** : kilomètres évités × 0,15 kg/km (ordre de grandeur d'un "
+            f"véhicule utilitaire léger).\n"
+            f"- **Heures de conduite** : estimation à partir des km et d'une vitesse moyenne "
+            f"de 50 km/h (hors temps d'intervention sur site).\n"
+            f"- **Distances** : "
+            + ("trajets routiers réels (OSRM)." if stats.get("routier_reel")
+               else "estimées à vol d'oiseau × 1,3 (service routier indisponible).")
+        )
 
     # CARTE D'ABORD - routes animées, points numérotés, légende
     st.markdown("### 🗺️ Carte des tournées")
@@ -352,6 +368,9 @@ if "res" in st.session_state:
         col = palette[i % len(palette)]
         sub = sub.sort_values("ordre")
         chemin = ([list(depot_pt)] if depot_pt else []) + list(zip(sub["lat"], sub["lon"]))
+        # Fermer la boucle (retour au dépôt) si tournée en cycle, comme le calcul réel
+        if depot_pt and params.get("depot_mode") != "ouverte":
+            chemin = chemin + [list(depot_pt)]
         AntPath(chemin, color=col, weight=4, opacity=0.9, delay=800,
                 tooltip=f"{tech} - jour {jour}").add_to(fmap)
         for _, r in sub.iterrows():
@@ -382,7 +401,7 @@ if "res" in st.session_state:
     for (tech, jour), sub in groupes:
         url = e.lien_google_maps(stats.get("depot"), sub, "driving", ouverte_flag)
         recap.append({"technicien": tech, "jour": jour, "nb_sites": len(sub),
-                      "km": round(sub["km_segment"].sum(), 1), "lien_google_maps": url})
+                      "km": round(sub["km_segment"].sum() + (sub["km_retour"].sum() if "km_retour" in sub else 0), 1), "lien_google_maps": url})
     recap_df = pd.DataFrame(recap)
 
     def to_excel(routes_df, recap_df):
@@ -404,7 +423,7 @@ if "res" in st.session_state:
     depot_pt = stats.get("depot")
     for (tech, jour), sub in groupes:
         sub = sub.sort_values("ordre")
-        km_t = sub["km_segment"].sum()
+        km_t = sub["km_segment"].sum() + (sub["km_retour"].sum() if "km_retour" in sub else 0)
         duree_t = len(sub) * params.get("duree_site", 30) + (km_t / 50) * 60  # min
         with st.expander(f"{tech} - jour {jour} · {len(sub)} sites · "
                          f"{km_t:.0f} km · ≈{duree_t/60:.1f} h"):
