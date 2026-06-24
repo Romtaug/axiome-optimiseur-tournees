@@ -1,5 +1,5 @@
 """
-engine.py — Moteur d'optimisation de tournées techniciens
+engine.py - Moteur d'optimisation de tournées techniciens
 ===========================================================
 Logique pure (pas d'interface). Utilisé par app.py.
 
