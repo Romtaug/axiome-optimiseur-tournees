@@ -83,24 +83,15 @@ def geocoder(adresse):
 
 # ── 1. Données ─────────────────────────────────────────────────────────
 st.markdown("### 1 · Vos sites")
-c1, c2 = st.columns([2, 1])
-with c1:
-    f = st.file_uploader("Fichier Excel des sites (colonnes : nom, adresse, ville, "
-                         "code postal, latitude, longitude)", type=["xlsx", "xls", "csv"])
-with c2:
-    demo = st.checkbox("Utiliser le fichier de démonstration", value=f is None)
+f = st.file_uploader("Fichier Excel des sites (nom, adresse, ville, code postal, "
+                     "latitude, longitude)", type=["xlsx", "xls", "csv"])
 
 df_raw = None
-if f is not None and not demo:
+if f is not None:
     df_raw = pd.read_csv(f) if f.name.endswith("csv") else pd.read_excel(f)
-elif demo:
-    try:
-        df_raw = pd.read_excel("Fichier_démo.xlsx")
-    except Exception:
-        st.info("Dépose ton fichier de démo à côté de app.py sous le nom "
-                "« Fichier_démo.xlsx », ou importe un fichier ci-dessus.")
 
 if df_raw is None:
+    st.info("Importez un fichier de sites (Excel ou CSV) pour commencer.")
     st.stop()
 
 sites = e.normaliser(df_raw)
